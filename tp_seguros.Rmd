@@ -1,0 +1,171 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-06-09"
+---
+
+```{r}
+library(readxl)
+library(dplyr)
+
+cuantias_23 <- read_excel("Trabajo Final 2024 Base de Datos .xlsx", 
+                          col_types = c("date", "numeric"))
+cer23 <- read_excel("cer23.xlsx", 
+                    col_types = c("date", "numeric"))
+
+
+cuantias_23 <- cuantias_23 %>%
+  left_join(cer23, by = "Fecha")
+
+cuantias_23 <- cuantias_23 %>%
+  mutate(cuantia24 = `Cuantía` * (cer23$ValorCER[366]/ValorCER))
+
+######################## DESCRIPTIVO ##################################
+library(ggplot2)
+library(lubridate)
+```
+
+
+```{r}
+# Crear columna con el mes en formato año-mes
+
+cuantias_23 <- cuantias_23 %>%
+  mutate(mes = format(as.Date(Fecha), "%Y-%m"))
+ggplot(cuantias_23, aes(x = mes)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Cantidad de cuantías pagadas por mes",
+       x = "Mes",
+       y = "Cantidad de pagos") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+####################
+
+ggplot(cuantias_23, aes(x = cuantia24)) +
+  geom_histogram(fill = "darkgreen", bins = 30, color = "white") +
+  labs(title = "Distribución de cuantia24",
+       x = "cuantia24",
+       y = "Frecuencia") +
+  theme_minimal()
+```
+```{r}
+mean(cuantias_23$cuantia24)
+sd(cuantias_23$cuantia24)
+```
+
+
+```{r}
+library(fitdistrplus)
+library(actuar)
+```
+
+```{r}
+datos <- na.omit(cuantias_23$cuantia24)
+
+# Ajustes
+ajuste_lnorm <- fitdist(datos, "lnorm")
+ajuste_weibull <- fitdist(datos, "weibull")
+ajuste_burr <- fitdist(datos, "burr", start = list(shape1 = 2, shape2 = 2, rate = 2))
+ajuste_pareto <- fitdist(datos, "pareto", start = list(shape = 2, scale = min(datos)))
+
+
+ggplot(data.frame(x = datos), aes(x = x)) +
+  geom_histogram(aes(y = ..density..), bins = 50, fill = "darkgreen", color = "black", alpha = 0.6) +
+  stat_function(fun = dlnorm,
+                args = list(meanlog = ajuste_lnorm$estimate["meanlog"],
+                            sdlog = ajuste_lnorm$estimate["sdlog"]),
+                color = "blue", size = 1, linetype = "solid") +
+  stat_function(fun = dweibull,
+                args = list(shape = ajuste_weibull$estimate["shape"],
+                            scale = ajuste_weibull$estimate["scale"]),
+                color = "cyan", size = 1, linetype = "dashed") +
+  stat_function(fun = dburr,
+                args = list(shape1 = ajuste_burr$estimate["shape1"],
+                            shape2 = ajuste_burr$estimate["shape2"],
+                            rate = ajuste_burr$estimate["rate"]),
+                color = "red", size = 1, linetype = "dotdash") +
+
+  stat_function(fun = dpareto,
+                args = list(shape = ajuste_pareto$estimate["shape"],
+                            scale = ajuste_pareto$estimate["scale"]),
+                color = "purple", size = 1, linetype = "twodash") +
+
+  labs(title = "Ajuste de varias distribuciones a cuantia24",
+       x = "cuantia24",
+       y = "Densidad",
+       caption = "Distribuciones: Log-normal (azul), Weibull (verde), Burr (rojo), Pareto (violeta)") +
+  theme_minimal()
+
+```
+Usaremos binomial negativa para simular cantidad de siniestros por ser el caso mas general y distribución Log Normal y Burr para simular las cuantias individuales ya que vemos que son las dos que mejor ajustan a nuestros datos
+
+# Simulaciones
+
+```{r}
+# Cant sinistros 
+## Binomial negativa
+# Datos históricos
+polizas <- c(24752, 25348, 25615)
+siniestros <- c(3023, 3581, 3431)
+
+tasas <- siniestros / polizas # Tasa siniestral por año
+tasa_prom <- mean(tasas) # Media de la tasa siniestral
+polizas_2024 <- 25615 # Simulación para 25615 pólizas
+mu <- tasa_prom * polizas_2024
+var_siniestros <- var(siniestros)
+size <- mu^2 / (var_siniestros - mu)
+
+# Simular 1000 observaciones de siniestros
+set.seed(1511)# Cantidad de años a simular
+
+# Cantidad de años a simular
+n_sim <- 10000
+
+# Vectores para guardar resultados
+suma_burr <- numeric(n_sim)
+suma_lnorm <- numeric(n_sim)
+
+# Simulación año por año
+for (i in 1:n_sim) {
+  # Simular cantidad de siniestros
+  cantidad <- rnbinom(1, mu = mu, size = size)
+
+  # Simular severidades y sumar
+  if (cantidad > 0) {
+    burr_vals <- rburr(cantidad,
+                       shape1 = ajuste_burr$estimate["shape1"],
+                       shape2 = ajuste_burr$estimate["shape2"],
+                       rate   = ajuste_burr$estimate["rate"])
+    
+    lnorm_vals <- rlnorm(cantidad,
+                         meanlog = ajuste_lnorm$estimate["meanlog"],
+                         sdlog   = ajuste_lnorm$estimate["sdlog"])
+    
+    suma_burr[i] <- sum(burr_vals)
+    suma_lnorm[i] <- sum(lnorm_vals)
+  } else {
+    suma_burr[i] <- 0
+    suma_lnorm[i] <- 0
+  }
+}
+
+# Resultado final como data.frame
+resultados <- data.frame(lognormal = suma_lnorm,
+                         burr = suma_burr)
+
+```
+
+```{r}
+boxplot(resultados,
+        main = "Distribución de los costos siniestrales simulados",
+        ylab = "Costo Total Anual",
+        col = c("skyblue", "orange"))
+
+```
+
+TODO: 
+1. calcular la media de resultados$lgo-normal (prima pura anual total esperada)
+2. dividirlo por la cantidad de polizas (primas puras individuales) y sumar factor de recargo
+3. calcular el margen de solvencia minimo
+4. presentar resultados
