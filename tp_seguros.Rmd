@@ -32,7 +32,7 @@ library(lubridate)
 cuantias_23 <- cuantias_23 %>%
   mutate(mes = format(as.Date(Fecha), "%Y-%m"))
 ggplot(cuantias_23, aes(x = mes)) +
-  geom_bar(fill = "steelblue") +
+  geom_bar(fill = "#66CDAA") +
   labs(title = "Cantidad de cuantías pagadas por mes",
        x = "Mes",
        y = "Cantidad de pagos") +
@@ -43,7 +43,7 @@ ggplot(cuantias_23, aes(x = mes)) +
 ####################
 
 ggplot(cuantias_23, aes(x = cuantia24)) +
-  geom_histogram(fill = "darkgreen", bins = 30, color = "white") +
+  geom_histogram(fill = "#66CDAA", bins = 30, color = "white") +
   labs(title = "Distribución de cuantia24",
        x = "cuantia24",
        y = "Frecuencia") +
@@ -71,32 +71,58 @@ ajuste_pareto <- fitdist(datos, "pareto", start = list(shape = 2, scale = min(da
 
 
 ggplot(data.frame(x = datos), aes(x = x)) +
-  geom_histogram(aes(y = ..density..), bins = 50, fill = "darkgreen", color = "black", alpha = 0.6) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50, fill = "#66CDAA", color = "black", alpha = 0.6) +
+
+  # --- Todas las líneas en tipo "solid" (continua) y tamaño 0.7 (más fino) ---
   stat_function(fun = dlnorm,
                 args = list(meanlog = ajuste_lnorm$estimate["meanlog"],
                             sdlog = ajuste_lnorm$estimate["sdlog"]),
-                color = "blue", size = 1, linetype = "solid") +
+                aes(color = "Log-normal", linetype = "Log-normal"),
+                size = 0.7) + # Más fina
   stat_function(fun = dweibull,
                 args = list(shape = ajuste_weibull$estimate["shape"],
                             scale = ajuste_weibull$estimate["scale"]),
-                color = "cyan", size = 1, linetype = "dashed") +
+                aes(color = "Weibull", linetype = "Weibull"),
+                size = 0.7) + # Más fina
   stat_function(fun = dburr,
                 args = list(shape1 = ajuste_burr$estimate["shape1"],
                             shape2 = ajuste_burr$estimate["shape2"],
                             rate = ajuste_burr$estimate["rate"]),
-                color = "red", size = 1, linetype = "dotdash") +
-
+                aes(color = "Burr", linetype = "Burr"),
+                size = 0.7) + # Más fina
   stat_function(fun = dpareto,
                 args = list(shape = ajuste_pareto$estimate["shape"],
                             scale = ajuste_pareto$estimate["scale"]),
-                color = "purple", size = 1, linetype = "twodash") +
+                aes(color = "Pareto", linetype = "Pareto"),
+                size = 0.7) + # Más fina
 
-  labs(title = "Ajuste de varias distribuciones a cuantia24",
-       x = "cuantia24",
-       y = "Densidad",
-       caption = "Distribuciones: Log-normal (azul), Weibull (verde), Burr (rojo), Pareto (violeta)") +
-  theme_minimal()
+  # --- Personalización de colores y tipos de línea en la leyenda ---
+  scale_color_manual(name = "Distribución",
+                     values = c("Log-normal" = "darkblue",
+                                "Weibull" = "#5F9EA0",
+                                "Burr" = "#8B0A50",
+                                "Pareto" = "#CD5555")) +
+  scale_linetype_manual(name = "Distribución",
+                        values = c("Log-normal" = "solid", # Todas "solid"
+                                   "Weibull" = "solid",
+                                   "Burr" = "solid",
+                                   "Pareto" = "solid")) +
 
+  # --- Formato del Eje X ---
+  scale_x_continuous(labels = scales::number_format(big.mark = ".", decimal.mark = ",", accuracy = 1)) +
+  labs(title = "Ajuste de distribuciones a las cuantias",
+       x = "Valor de las Cuantias",
+       y = "Densidad") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        legend.title = element_text(face = "bold"),
+        legend.text = element_text(size = 10),
+        axis.title.y = element_blank(), # Elimina el título del eje Y
+        axis.text.y = element_blank(),  # Elimina los números/etiquetas del eje Y
+        axis.ticks.y = element_blank(), # Elimina las marcas del eje Y
+        axis.line.y = element_blank()  # Elimina la línea del eje Y)
+   )+
+  coord_cartesian(xlim = c(0, 2500000))
 ```
 Usaremos binomial negativa para simular cantidad de siniestros por ser el caso mas general y distribución Log Normal y Burr para simular las cuantias individuales ya que vemos que son las dos que mejor ajustan a nuestros datos
 
@@ -164,8 +190,71 @@ boxplot(resultados,
 
 ```
 
-TODO: 
-1. calcular la media de resultados$lgo-normal (prima pura anual total esperada)
-2. dividirlo por la cantidad de polizas (primas puras individuales) y sumar factor de recargo
-3. calcular el margen de solvencia minimo
-4. presentar resultados
+```{r}
+install.packages("e1071")
+library(e1071)
+media <- mean(resultados$lognormal)
+desvio <- sd(resultados$lognormal)
+coef_asimetria <- skewness(resultados$lognormal)
+
+# PPI <- media/25615
+# PPI_1porc <- PPI*1.01
+# PPI_1.5porc <- PPI*1.015
+# PPI_2porc <- PPI*1.02
+
+z_99 <- qnorm(0.99, 0, 1)
+y_99 <- z_99 + coef_asimetria/6 * (z_99^2-1)
+
+y <- y_99* desvio + media
+
+MSM_1porc <- y-(media*1.01)
+MSM_1.5porc <- y-(media*1.015)
+MSM_2porc <- y-(media*1.02)
+MSM_log <- c(MSM_1porc, MSM_1.5porc, MSM_2porc)
+```
+
+```{r}
+media_burr <- mean(resultados$burr)
+desvio_burr <- sd(resultados$burr)
+coef_asimetria_burr <- skewness(resultados$burr)
+
+# PPI <- media/25615
+# PPI_1porc <- PPI*1.01
+# PPI_1.5porc <- PPI*1.015
+# PPI_2porc <- PPI*1.02
+
+z_99 <- qnorm(0.99, 0, 1)
+y_99 <- z_99 + coef_asimetria_burr/6 * (z_99^2-1)
+
+y <- y_99* desvio_burr + media_burr
+
+MSM_1porc_burr <- y-(media_burr*1.01)
+MSM_1.5porc_burr <- y-(media_burr*1.015)
+MSM_2porc_burr <- y-(media_burr*1.02)
+MSM_burr <- c(MSM_1porc_burr, MSM_1.5porc_burr, MSM_2porc_burr)
+```
+
+## Resultados
+ 
+```{r}
+library(kableExtra)
+library(knitr)
+porc <- c("1%", "1,5%", "2%")
+tabla1 <- data.frame(porc, MSM_log, MSM_burr)
+colnames(tabla1) <- c("Porcentaje de Recargo de Seguridad","Margen de Solvencia Mínimo Log-Normal", "Margen de Solvencia Mínimo Burr")
+
+tabla1$`Margen de Solvencia Mínimo Log-Normal` <-
+  paste0("$", formatC(tabla1$`Margen de Solvencia Mínimo Log-Normal`,
+                       big.mark = ".", format = "f", digits = 0))
+
+tabla1$`Margen de Solvencia Mínimo Burr` <-
+  paste0("$", formatC(tabla1$`Margen de Solvencia Mínimo Burr`,
+                       big.mark = ".", format = "f", digits = 0))
+tabla1 %>%
+  kbl(caption = "Tabla de Margen de Solvencia Mínimo según Porcentaje de Recargo se Seguridad", align = "c") %>% # Añadir un título
+  kable_styling(bootstrap_options = "striped", full_width = FALSE) %>% 
+  row_spec(0, background = "#66CDAA")
+
+```
+ 
+ 
