@@ -1,13 +1,72 @@
 ---
-title: "Untitled"
-output: html_document
-date: "2025-06-09"
+title: "TP 3 Bioestdística"
+author: "Irisarri - Landa"
+toc: false
+output:
+  pdf_document: default
+toc-title: Contenido
+execute:
+  warning: false
+  message: false
+editor_options: 
+  markdown: 
+    wrap: sentence
 ---
 
-```{r}
+\thispagestyle{empty}
+
+\begin{center}
+  \vspace*{1cm}
+
+  \Huge
+  \textbf{Trabajo Práctico: Metodos Estadísticos Aplicados al Seguro}
+
+  \vspace{0.5cm}
+  \LARGE
+
+  \vspace{1.5cm}
+
+  \textbf{Alumnos:}  Malena Irisarri, Román Landa\\
+
+  \vfill
+
+  \includegraphics[width=0.9\textwidth]{img/logo_universidad.jpg}
+
+  \vspace{0.8cm}
+
+
+  Rosario, Argentina
+
+  10 de Mayo de 2025
+\end{center}
+
+\newpage
+
+# Introducción
+
+En el sector asegurador, garantizar la solvencia financiera es fundamental para cumplir con las obligaciones frente a los asegurados y mantener la estabilidad de la compañía. En este contexto, el Margen de Solvencia Mínimo (MSM) emerge como un indicador clave que asegura la capacidad de la aseguradora para afrontar siniestros inesperados, incluso en escenarios adversos. 
+
+Para este trabajo, se analizará la sub-cartera de pólizas de seguros automotores de una compañía, compuesta por 25.615 pólizas, con el objetivo de determinar el MSM que permita alcanzar una Probabilidad de Solvencia del 99% durante el año 2024. El análisis se basará en datos históricos de siniestros de los años 2021, 2022 y 2023, considerando ajustes por inflación mediante la serie CER publicado en [Banco Central de la República Argentina (BCRA)](https://www.bcra.gob.ar/PublicacionesEstadisticas/Principales_variables.asp). Adicionalmente, se explorarán diferentes distribuciones de probabilidad, para modelar el comportamiento de los siniestros y calcular los recargos de seguridad necesarios sobre las primas puras.
+
+Este informe presentará alternativas para el cálculo del MSM bajo es importante spuesto de que **durante el año 2024 se va a mantener la cantidad de pólizas y el perfil de las mismas.** El objetivo final es asegurando la estabilidad financiera y cumpliendo con los requisitos regulatorios de la Superintendencia de Seguros de la Nación (SSN).
+
+
+
+```{r include=FALSE}
 library(readxl)
 library(dplyr)
+library(fitdistrplus)
+library(actuar)
+library(ggplot2)
+library(lubridate)
+library(e1071)
+```
 
+# Datos
+
+Contamos con una base de datos que contiene 3431 cuantias pagadas durante el año 2023. A ella le aplicamos la actualización por CER llevando todos los valores al dia 01-01-2024.
+
+```{r}
 cuantias_23 <- read_excel("Trabajo Final 2024 Base de Datos .xlsx", 
                           col_types = c("date", "numeric"))
 cer23 <- read_excel("cer23.xlsx", 
@@ -20,20 +79,25 @@ cuantias_23 <- cuantias_23 %>%
 cuantias_23 <- cuantias_23 %>%
   mutate(cuantia24 = `Cuantía` * (cer23$ValorCER[366]/ValorCER))
 
-######################## DESCRIPTIVO ##################################
-library(ggplot2)
-library(lubridate)
+head(cuantias_23, 10)%>%
+  kbl(caption = "Cuantias Pagadas en 2023", align = "c") %>% # Añadir un título
+  kable_styling(bootstrap_options = "striped", full_width = FALSE) %>% 
+  row_spec(0, background = "#66CDAA")
 ```
 
+# Análisis Descriptivo
+
+Realizamos un breve análisis descriptivo para observar cual fué la frecuencia y la severidad durante 2023
 
 ```{r}
+######################## DESCRIPTIVO ##################################
 # Crear columna con el mes en formato año-mes
 
 cuantias_23 <- cuantias_23 %>%
   mutate(mes = format(as.Date(Fecha), "%Y-%m"))
 ggplot(cuantias_23, aes(x = mes)) +
   geom_bar(fill = "#66CDAA") +
-  labs(title = "Cantidad de cuantías pagadas por mes",
+  labs(title = "Cantidad de cuantías pagadas por mes (frecuencia)",
        x = "Mes",
        y = "Cantidad de pagos") +
   theme_minimal() +
@@ -43,24 +107,22 @@ ggplot(cuantias_23, aes(x = mes)) +
 ####################
 
 ggplot(cuantias_23, aes(x = cuantia24)) +
-  geom_histogram(fill = "#66CDAA", bins = 30, color = "white") +
-  labs(title = "Distribución de cuantia24",
+  geom_histogram(fill = "#66CDAA", bins = 60, color = "white") +
+  labs(title = "Distribución de cuantia24 (severidad)",
        x = "cuantia24",
        y = "Frecuencia") +
-  theme_minimal()
+  theme_minimal()+
+  coord_cartesian(xlim = c(0, 2000000))
 ```
+En estos gráficos podemos observar que la frecunencia parece constante a lo largo del periodo de análisis y que la severidad parece distribuirse de forma asimetrica con muchos siniestros pequeños y algunos pocos de gran importe.
+
 ```{r}
 mean(cuantias_23$cuantia24)
 sd(cuantias_23$cuantia24)
 ```
 
 
-```{r}
-library(fitdistrplus)
-library(actuar)
-```
-
-```{r}
+```{r message=FALSE, warning=FALSE}
 datos <- na.omit(cuantias_23$cuantia24)
 
 # Ajustes
@@ -182,25 +244,19 @@ resultados <- data.frame(lognormal = suma_lnorm,
 
 ```
 
-```{r}
-boxplot(resultados,
-        main = "Distribución de los costos siniestrales simulados",
-        ylab = "Costo Total Anual",
-        col = c("skyblue", "orange"))
+```{r eval=FALSE, include=FALSE}
+# boxplot(resultados,
+#         main = "Distribución de los costos siniestrales simulados",
+#         ylab = "Costo Total Anual",
+#         col = c("skyblue", "orange"))
 
 ```
 
 ```{r}
-install.packages("e1071")
-library(e1071)
 media <- mean(resultados$lognormal)
 desvio <- sd(resultados$lognormal)
 coef_asimetria <- skewness(resultados$lognormal)
 
-# PPI <- media/25615
-# PPI_1porc <- PPI*1.01
-# PPI_1.5porc <- PPI*1.015
-# PPI_2porc <- PPI*1.02
 
 z_99 <- qnorm(0.99, 0, 1)
 y_99 <- z_99 + coef_asimetria/6 * (z_99^2-1)
@@ -218,10 +274,6 @@ media_burr <- mean(resultados$burr)
 desvio_burr <- sd(resultados$burr)
 coef_asimetria_burr <- skewness(resultados$burr)
 
-# PPI <- media/25615
-# PPI_1porc <- PPI*1.01
-# PPI_1.5porc <- PPI*1.015
-# PPI_2porc <- PPI*1.02
 
 z_99 <- qnorm(0.99, 0, 1)
 y_99 <- z_99 + coef_asimetria_burr/6 * (z_99^2-1)
@@ -236,7 +288,7 @@ MSM_burr <- c(MSM_1porc_burr, MSM_1.5porc_burr, MSM_2porc_burr)
 
 ## Resultados
  
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(kableExtra)
 library(knitr)
 porc <- c("1%", "1,5%", "2%")
