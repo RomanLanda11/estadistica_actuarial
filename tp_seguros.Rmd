@@ -1,6 +1,6 @@
 ---
-title: "TP 3 Bioestdística"
-author: "Irisarri - Landa"
+title: ""
+author: ""
 toc: false
 output:
   pdf_document: default
@@ -60,6 +60,8 @@ library(actuar)
 library(ggplot2)
 library(lubridate)
 library(e1071)
+library(knitr)
+library(kableExtra)
 ```
 
 # Datos
@@ -77,7 +79,7 @@ cuantias_23 <- cuantias_23 %>%
   left_join(cer23, by = "Fecha")
 
 cuantias_23 <- cuantias_23 %>%
-  mutate(cuantia24 = `Cuantía` * (cer23$ValorCER[366]/ValorCER))
+  mutate(cuantia24 = `Cuantia` * (cer23$ValorCER[366]/ValorCER))
 
 head(cuantias_23, 10)%>%
   kbl(caption = "Cuantias Pagadas en 2023", align = "c") %>% # Añadir un título
@@ -114,13 +116,20 @@ ggplot(cuantias_23, aes(x = cuantia24)) +
   theme_minimal()+
   coord_cartesian(xlim = c(0, 2000000))
 ```
-En estos gráficos podemos observar que la frecunencia parece constante a lo largo del periodo de análisis y que la severidad parece distribuirse de forma asimetrica con muchos siniestros pequeños y algunos pocos de gran importe.
-
-```{r}
+```{r include=FALSE}
+median(cuantias_23$cuantia24)
 mean(cuantias_23$cuantia24)
 sd(cuantias_23$cuantia24)
 ```
 
+En estos gráficos podemos observar que la frecunencia parece constante a lo largo del periodo de análisis y que la severidad parece distribuirse de forma asimetrica con muchos siniestros pequeños y algunos pocos de gran importe. Además, podemos ver que al menos el 50% de los siniestros le costaron menos de 417.603,40.- pesos a la compañia y que el costo medio de los mismos fue de 454.566,30.- pesos con un desvio estandar de 233.500,60.- 
+
+
+# Simulaciones
+
+Para predecir el monto esperado de siniestros y calcular el margen de solvencia, simularemos la frecuencia (número de siniestros) y la severidad (monto por siniestro), probando distintas combinaciones de distribuciones.
+
+Comenzamos analizando cuál distribución se ajusta mejor a nuestros datos observados. El siguiente gráfico compara los datos reales con las distribuciones candidatas (Lognormal, Weibull, Pareto y Burr) para la severidad:
 
 ```{r message=FALSE, warning=FALSE}
 datos <- na.omit(cuantias_23$cuantia24)
@@ -186,11 +195,14 @@ ggplot(data.frame(x = datos), aes(x = x)) +
    )+
   coord_cartesian(xlim = c(0, 2500000))
 ```
-Usaremos binomial negativa para simular cantidad de siniestros por ser el caso mas general y distribución Log Normal y Burr para simular las cuantias individuales ya que vemos que son las dos que mejor ajustan a nuestros datos
 
-# Simulaciones
+Optamos por una distribución Binomial Negativa para la frecuencia de siniestros por ser el caso más general para representar lo observado, ya que esta cubre los casos donde la varianza supera a la esperanza, situación frecuente en seguros de automóviles. 
 
-```{r}
+Para las cuantías individuales de los siniestros, seleccionamos dos distribuciones de cola pesada que muestran el mejor ajuste a nuestros datos: la Log-Normal, que modela adecuadamente la asimetría positiva y la Burr que capturar diversos patrones de severidad, incluyendo eventos extremos. 
+
+Continuamos simulando 10.000 años para las combinaciones de distribuciones.
+
+```{r message=FALSE, warning=FALSE}
 # Cant sinistros 
 ## Binomial negativa
 # Datos históricos
@@ -244,15 +256,8 @@ resultados <- data.frame(lognormal = suma_lnorm,
 
 ```
 
-```{r eval=FALSE, include=FALSE}
-# boxplot(resultados,
-#         main = "Distribución de los costos siniestrales simulados",
-#         ylab = "Costo Total Anual",
-#         col = c("skyblue", "orange"))
 
-```
-
-```{r}
+```{r message=FALSE, warning=FALSE}
 media <- mean(resultados$lognormal)
 desvio <- sd(resultados$lognormal)
 coef_asimetria <- skewness(resultados$lognormal)
@@ -286,7 +291,11 @@ MSM_2porc_burr <- y-(media_burr*1.02)
 MSM_burr <- c(MSM_1porc_burr, MSM_1.5porc_burr, MSM_2porc_burr)
 ```
 
-## Resultados
+# Resultados
+
+A continuación presentamos los márgenes de solvencia mínimos obtenidos mediante simulación para diferentes porcentajes de recargo de seguridad, comparando los resultados bajo los dos modelos de severidad considerados: Log-Normal y Burr. La tabla resume los valores requeridos para garantizar un 99% de probabilidad de solvencia, mostrando cómo varían las necesidades de capital según el porcentaje de recargo aplicado y la distribución utilizada.
+
+Los montos están expresados en pesos argentinos y representan el capital adicional que la compañía debería mantener para cubrir posibles desviaciones adversas en su cartera de seguros automotores durante el año 2024.
  
 ```{r message=FALSE, warning=FALSE}
 library(kableExtra)
