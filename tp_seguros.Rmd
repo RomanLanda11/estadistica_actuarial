@@ -19,7 +19,7 @@ editor_options:
   \vspace*{1cm}
 
   \Huge
-  \textbf{Trabajo Práctico: Metodos Estadísticos Aplicados al Seguro}
+  \textbf{Trabajo Práctico: Estadística Acturial}
 
   \vspace{0.5cm}
   \LARGE
