@@ -19,7 +19,7 @@ editor_options:
   \vspace*{1cm}
 
   \Huge
-  \textbf{Trabajo Práctico: Estadística Acturial}
+  \textbf{Trabajo Práctico: Estadística Actuarial}
 
   \vspace{0.5cm}
   \LARGE
@@ -68,7 +68,7 @@ library(kableExtra)
 
 Contamos con una base de datos que contiene 3431 cuantías pagadas durante el año 2023. A ellas les aplicamos la actualización por CER llevando todos los valores al día 01-01-2024 para poder compararlos.
 
-```{r echo=FALSE, warning=TRUE}
+```{r echo=FALSE, warning=FALSE}
 cuantias_23 <- read_excel("Trabajo Final 2024 Base de Datos .xlsx", 
                           col_types = c("date", "numeric"))
 cer23 <- read_excel("cer23.xlsx", 
@@ -80,21 +80,33 @@ cuantias_23 <- cuantias_23 %>%
 
 cuantias_23 <- cuantias_23 %>%
   mutate(cuantia24 = `Cuantia` * (cer23$ValorCER[366]/ValorCER))
-
-tabla_cunatia <- cuantias_23
-colnames(tabla_cunatia) <- c('Fecha','Cuantía', 'Valor CER', 'Cuantía Actualizada')
-head(tabla_cunatia, 10)%>%
-  kbl(caption = "Cuantías Pagadas en 2023.", align = "c") %>% # Añadir un título
-  kable_styling(bootstrap_options = "striped", full_width = FALSE) %>% 
-  row_spec(0, background = "#66CDAA")
 ```
 
+
+```{r echo=FALSE, warning=FALSE}
+tabla_cunatia <- cuantias_23
+colnames(tabla_cunatia) <- c('Fecha','Cuantía', 'Valor CER', 'Cuantía Actualizada')
+
+head(tabla_cunatia, 10) %>%
+  kbl(caption = "Cuantías Pagadas en 2023.", 
+      align = "c",
+      format = "latex",  # Especificar formato LaTeX para PDF
+      booktabs = TRUE) %>%  # Mejor formato para tablas en PDF
+  kable_styling(
+    latex_options = c("striped", "hold_position", "scale_down"),  # Opciones específicas para PDF
+    full_width = FALSE,
+    position = "center") %>% 
+  row_spec(0, background = "#66CDAA", bold = TRUE)
+```
+
+
+\newpage
 
 # Análisis Descriptivo
 
 Realizamos un breve análisis descriptivo para observar cuál fue la frecuencia y la severidad durante 2023.
 
-```{r echo=FALSE}
+```{r echo=FALSE, out.width="90%"}
 ######################## DESCRIPTIVO ##################################
 # Crear columna con el mes en formato año-mes
 
@@ -107,8 +119,10 @@ ggplot(cuantias_23, aes(x = mes)) +
        y = "Cantidad de pagos") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
 
 
+```{r echo=FALSE, out.width="90%"}
 ####################
 
 ggplot(cuantias_23, aes(x = cuantia24)) +
@@ -119,6 +133,7 @@ ggplot(cuantias_23, aes(x = cuantia24)) +
   theme_minimal()+
   coord_cartesian(xlim = c(0, 2000000))
 ```
+
 ```{r include=FALSE}
 median(cuantias_23$cuantia24)
 mean(cuantias_23$cuantia24)
@@ -293,6 +308,8 @@ MSM_2porc_burr <- y-(media_burr*1.02)
 MSM_burr <- c(MSM_1porc_burr, MSM_1.5porc_burr, MSM_2porc_burr)
 ```
 
+\newpage
+
 # Resultados
 
 A continuación presentamos los márgenes de solvencia mínimos obtenidos mediante simulación para diferentes porcentajes de recargo de seguridad, comparando los resultados bajo los dos modelos de severidad considerados: Log-Normal y Burr. La tabla resume los valores requeridos para garantizar un 99% de probabilidad de solvencia, mostrando cómo varían las necesidades de capital según el porcentaje de recargo aplicado y la distribución utilizada.
@@ -304,21 +321,43 @@ library(kableExtra)
 library(knitr)
 porc <- c("1%", "1,5%", "2%")
 tabla1 <- data.frame(porc, MSM_log, MSM_burr)
-colnames(tabla1) <- c("Porcentaje de Recargo de Seguridad","Margen de Solvencia Mínimo Log-Normal", "Margen de Solvencia Mínimo Burr")
+# Formateo de la tabla
+colnames(tabla1) <- c("Porcentaje de Recargo de Seguridad",
+                     "Margen de Solvencia Mínimo Log-Normal", 
+                     "Margen de Solvencia Mínimo Burr")
 
-tabla1$`Margen de Solvencia Mínimo Log-Normal` <-
-  paste0("$", formatC(tabla1$`Margen de Solvencia Mínimo Log-Normal`,
-                       big.mark = ".", format = "f", digits = 0))
+# Formateo de valores numéricos con separadores de miles
+tabla1$`Margen de Solvencia Mínimo Log-Normal` <- paste0("$", formatC(tabla1$`Margen de Solvencia Mínimo Log-Normal`,
+                                                                     big.mark = ".", 
+                                                                     decimal.mark = ",",
+                                                                     format = "f", 
+                                                                     digits = 0))
 
-tabla1$`Margen de Solvencia Mínimo Burr` <-
-  paste0("$", formatC(tabla1$`Margen de Solvencia Mínimo Burr`,
-                       big.mark = ".", format = "f", digits = 0))
+tabla1$`Margen de Solvencia Mínimo Burr` <- paste0("$", formatC(tabla1$`Margen de Solvencia Mínimo Burr`,
+                                                               big.mark = ".", 
+                                                               decimal.mark = ",",
+                                                               format = "f", 
+                                                               digits = 0))
+
+# Creación de la tabla con formato profesional
 tabla1 %>%
-  kbl(caption = "Margen de Solvencia Mínimo según porcentaje de recargo de seguridad.", align = "c") %>% # Añadir un título
-  kable_styling(bootstrap_options = "striped", full_width = FALSE) %>% 
-  row_spec(0, background = "#66CDAA")
+  kbl(caption = "Margen de Solvencia Mínimo según porcentaje de recargo de seguridad",
+      align = "c",
+      format = "latex",
+      booktabs = TRUE,
+      linesep = "") %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
+                full_width = FALSE,
+                position = "center",
+                font_size = 10) %>%
+  row_spec(0, background = "#66CDAA", bold = TRUE, color = "black") %>%
+  column_spec(1, width = "4cm") %>%
+  column_spec(2:3, width = "5cm") %>%
+  footnote(general = "Nota: Valores expresados en pesos argentinos al 01/01/2024",
+           general_title = "")
 ```
  
+
 
 \newpage
 
