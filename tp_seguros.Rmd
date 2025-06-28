@@ -66,7 +66,14 @@ library(kableExtra)
 
 # Datos
 
-Contamos con una base de datos que contiene 3431 cuantías pagadas durante el año 2023. A ellas les aplicamos la actualización por CER llevando todos los valores al día 01-01-2024 para poder compararlos.
+Contamos con una base de datos que contiene 3431 cuantías pagadas durante el año 2023. A ellas les aplicamos la actualización por CER llevando todos los valores al día 01-01-2024 para poder compararlos aplicando:
+
+$$
+\text{Cuantia Actualizada}_i = \text{Cuantia Original}_i \times \frac{\text{CER}_{\text{01/01/2024}}}{\text{CER}_i}
+$$
+
+
+
 
 ```{r echo=FALSE, warning=FALSE}
 cuantias_23 <- read_excel("Trabajo Final 2024 Base de Datos .xlsx", 
@@ -222,7 +229,13 @@ Optamos por una distribución Binomial Negativa para la frecuencia de siniestros
 
 Para las cuantías individuales de los siniestros, seleccionamos las dos distribuciones de cola pesada que muestran el mejor ajuste a nuestros datos: la Log-Normal, que modela adecuadamente la asimetría positiva y la Burr que captura diversos patrones de severidad, incluyendo eventos extremos. 
 
-Continuamos simulando 10.000 años para las combinaciones de distribuciones elegidas.
+Primero usamos datos históricos de los últimos 3 años: cuántas pólizas tuvimos y cuántos siniestros ocurrieron. Con eso, calculamos la tasa de siniestralidad promedio (es decir, qué proporción de pólizas termina en un siniestro).
+
+Luego, como para el año que viene esperamos tener una cantidad similar de pólizas, usamos esa tasa promedio para estimar cuántos siniestros podríamos tener. Pero en lugar de usar siempre un número fijo, lo que hicimos fue simular la cantidad de siniestros usando una distribución **Binomial Negativa**. Una vez que teníamos una cantidad simulada de siniestros para un año dado, simulamos también cuánto costaría cada uno. Y para eso usamos dos tipos distintos de distribuciones: **Burr** y **Log Nrormal**. Estas distribuciones reflejan bien las asimetrias de las cuantias observadas.
+
+Simulados 10.000 años, generamos una cantidad de siniestros y sumamos los montos simulados de cada uno, usando cada distribución y finalmente, con esos 10.000 costos anuales simulados, analizamos cuál sería un escenario muy desfavorable (el peor 1% de los casos), y a partir de eso, calculamos el **Margen de Seguridad Mínimo**. 
+
+Finalmente, presentamos los resultados recargando las primas en 1%, 5% o 10%.
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 # Cant sinistros 
@@ -288,8 +301,8 @@ y_99 <- z_99 + coef_asimetria/6 * (z_99^2-1)
 y <- y_99* desvio + media
 
 MSM_1porc <- y-(media*1.01)
-MSM_1.5porc <- y-(media*1.015)
-MSM_2porc <- y-(media*1.02)
+MSM_1.5porc <- y-(media*1.05)
+MSM_2porc <- y-(media*1.1)
 MSM_log <- c(MSM_1porc, MSM_1.5porc, MSM_2porc)
 
 media_burr <- mean(resultados$burr)
@@ -303,10 +316,87 @@ y_99 <- z_99 + coef_asimetria_burr/6 * (z_99^2-1)
 y <- y_99* desvio_burr + media_burr
 
 MSM_1porc_burr <- y-(media_burr*1.01)
-MSM_1.5porc_burr <- y-(media_burr*1.015)
-MSM_2porc_burr <- y-(media_burr*1.02)
+MSM_1.5porc_burr <- y-(media_burr*1.05)
+MSM_2porc_burr <- y-(media_burr*1.1)
 MSM_burr <- c(MSM_1porc_burr, MSM_1.5porc_burr, MSM_2porc_burr)
 ```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(e1071) # para skewness
+
+# Cálculo de estadísticas
+stats <- resultados %>%
+  summarise(
+    media_log = mean(lognormal),
+    sd_log = sd(lognormal),
+    skew_log = skewness(lognormal),
+    p50_log = quantile(lognormal, 0.50),
+    p75_log = quantile(lognormal, 0.75),
+    p90_log = quantile(lognormal, 0.90),
+    p95_log = quantile(lognormal, 0.95),
+    p99_log = quantile(lognormal, 0.99),
+    
+    media_burr = mean(burr),
+    sd_burr = sd(burr),
+    skew_burr = skewness(burr),
+    p50_burr = quantile(burr, 0.50),
+    p75_burr = quantile(burr, 0.75),
+    p90_burr = quantile(burr, 0.90),
+    p95_burr = quantile(burr, 0.95),
+    p99_burr = quantile(burr, 0.99)
+  )
+
+# Convertir a formato largo para graficar
+resultados_long <- resultados %>%
+  tidyr::pivot_longer(cols = everything(), names_to = "distribucion", values_to = "cuantia_total")
+
+library(scales)  # para label_number
+
+ggplot(resultados_long, aes(x = cuantia_total, fill = distribucion)) +
+  geom_histogram(alpha = 0.6, position = "identity", bins = 100) +
+  geom_vline(data = stats, aes(xintercept = media_log), color = "#2BAF9D", linetype = "dashed") +
+  geom_vline(data = stats, aes(xintercept = media_burr), color = "#A870B4", linetype = "dashed") +
+  labs(
+    title = "Distribución de cuantías totales simuladas",
+    x = "Cuantía total anual (en miles de millones)",
+    y = "Frecuencia",
+    fill = "Distribución"
+  ) +
+  scale_x_continuous(
+    labels = label_number(scale = 1e-9, suffix = " mil M", accuracy = 0.1)
+  ) +
+  scale_fill_manual(values = c("lognormal" = "#2BAF9D", "burr" = "#A870B4")) +
+  theme_minimal()
+
+# Reorganizar tabla
+tabla1 <- data.frame(
+  Distribución = c("Lognormal", "Burr"),
+  Media = round(c(stats$media_log, stats$media_burr), 2),
+  `Desvío estándar` = round(c(stats$sd_log, stats$sd_burr), 2),
+  `Asimetría` = round(c(stats$skew_log, stats$skew_burr), 2),
+  `Percentil 95` = round(c(stats$p95_log, stats$p95_burr), 2),
+  `Percentil 99` = round(c(stats$p99_log, stats$p99_burr), 2)
+)
+
+# Mostrar tabla en formato LaTeX
+tabla1 %>%
+  kbl(caption = "Estadísticas descriptivas de las cuantías anuales simuladas",
+      align = "c",
+      format = "latex",
+      booktabs = TRUE,
+      linesep = "") %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
+                full_width = FALSE,
+                position = "center",
+                font_size = 10) %>%
+  row_spec(0, background = "#66CDAA", bold = TRUE, color = "black") %>%
+  column_spec(1, width = "4cm") %>%
+  column_spec(2:10, width = "3cm") %>%
+  footnote(general = "Nota: Valores expresados en pesos argentinos al 01/01/2024",
+           general_title = "")
+
+```
+
 
 \newpage
 
@@ -319,7 +409,7 @@ Los montos están expresados en pesos argentinos y representan el capital adicio
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(kableExtra)
 library(knitr)
-porc <- c("1%", "1,5%", "2%")
+porc <- c("1%", "5%", "10%")
 tabla1 <- data.frame(porc, MSM_log, MSM_burr)
 # Formateo de la tabla
 colnames(tabla1) <- c("Porcentaje de Recargo de Seguridad",
@@ -357,6 +447,7 @@ tabla1 %>%
            general_title = "")
 ```
  
+En conclusión, observamos que a mayor recargo aplicado, menor es el capital que la compañía necesita reservar para garantizar su solvencia en el 99% de los escenarios posibles. Esta herramienta es ampliamente utilizada en la práctica actuarial, ya que permite dimensionar adecuadamente el riesgo. Sin embargo, es importante tener en cuenta que para atraer nuevos clientes es necesario ofrecer primas competitivas en relación con el resto del mercado. La determinación final de la prima que los productores comercializan surge, entonces, del equilibrio entre este análisis técnico, la presencia de marca y el contexto macroeconómico, entre otros factores.
 
 
 \newpage
@@ -567,6 +658,79 @@ MSM_1porc_burr <- y-(media_burr*1.01)
 MSM_1.5porc_burr <- y-(media_burr*1.015)
 MSM_2porc_burr <- y-(media_burr*1.02)
 MSM_burr <- c(MSM_1porc_burr, MSM_1.5porc_burr, MSM_2porc_burr)
+
+library(e1071) # para skewness
+
+# Cálculo de estadísticas
+stats <- resultados %>%
+  summarise(
+    media_log = mean(lognormal),
+    sd_log = sd(lognormal),
+    skew_log = skewness(lognormal),
+    p50_log = quantile(lognormal, 0.50),
+    p75_log = quantile(lognormal, 0.75),
+    p90_log = quantile(lognormal, 0.90),
+    p95_log = quantile(lognormal, 0.95),
+    p99_log = quantile(lognormal, 0.99),
+    
+    media_burr = mean(burr),
+    sd_burr = sd(burr),
+    skew_burr = skewness(burr),
+    p50_burr = quantile(burr, 0.50),
+    p75_burr = quantile(burr, 0.75),
+    p90_burr = quantile(burr, 0.90),
+    p95_burr = quantile(burr, 0.95),
+    p99_burr = quantile(burr, 0.99)
+  )
+
+# Convertir a formato largo para graficar
+resultados_long <- resultados %>%
+  tidyr::pivot_longer(cols = everything(), names_to = "distribucion", values_to = "cuantia_total")
+
+library(scales)  # para label_number
+
+ggplot(resultados_long, aes(x = cuantia_total, fill = distribucion)) +
+  geom_histogram(alpha = 0.6, position = "identity", bins = 100) +
+  geom_vline(data = stats, aes(xintercept = media_log), color = "#2BAF9D", linetype = "dashed") +
+  geom_vline(data = stats, aes(xintercept = media_burr), color = "#A870B4", linetype = "dashed") +
+  labs(
+    title = "Distribución de cuantías totales simuladas",
+    x = "Cuantía total anual (en miles de millones)",
+    y = "Frecuencia",
+    fill = "Distribución"
+  ) +
+  scale_x_continuous(
+    labels = label_number(scale = 1e-9, suffix = " mil M", accuracy = 0.1)
+  ) +
+  scale_fill_manual(values = c("lognormal" = "#2BAF9D", "burr" = "#A870B4")) +
+  theme_minimal()
+
+# Reorganizar tabla
+tabla1 <- data.frame(
+  Distribución = c("Lognormal", "Burr"),
+  Media = round(c(stats$media_log, stats$media_burr), 2),
+  `Desvío estándar` = round(c(stats$sd_log, stats$sd_burr), 2),
+  `Asimetría` = round(c(stats$skew_log, stats$skew_burr), 2),
+  `Percentil 95` = round(c(stats$p95_log, stats$p95_burr), 2),
+  `Percentil 99` = round(c(stats$p99_log, stats$p99_burr), 2)
+)
+
+# Mostrar tabla en formato LaTeX
+tabla1 %>%
+  kbl(caption = "Estadísticas descriptivas de las cuantías anuales simuladas",
+      align = "c",
+      format = "latex",
+      booktabs = TRUE,
+      linesep = "") %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
+                full_width = FALSE,
+                position = "center",
+                font_size = 10) %>%
+  row_spec(0, background = "#66CDAA", bold = TRUE, color = "black") %>%
+  column_spec(1, width = "4cm") %>%
+  column_spec(2:10, width = "3cm") %>%
+  footnote(general = "Nota: Valores expresados en pesos argentinos al 01/01/2024",
+           general_title = "")
 
 ############################## RESULTADOS ####################################
 
