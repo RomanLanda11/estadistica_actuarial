@@ -229,13 +229,23 @@ Optamos por una distribución Binomial Negativa para la frecuencia de siniestros
 
 Para las cuantías individuales de los siniestros, seleccionamos las dos distribuciones de cola pesada que muestran el mejor ajuste a nuestros datos: la Log-Normal, que modela adecuadamente la asimetría positiva y la Burr que captura diversos patrones de severidad, incluyendo eventos extremos. 
 
+La estimación de parámetros para ambos modelos se hacen durante el ajuste de los mismos por el método de *máxima verosimilitud* y los resutados fueron:
+
+* Binomial Negativa: $\hat{\mu}=3392,71$ y $\hat{\theta}=143,89$
+
+* Log Normal: $\hat{log(\mu)}=12,95$ y $\hat{log(\sigma)}=0,3617$
+
+* Burr: $\hat{\alpha}=1,08$, $\hat{\gamma}=4,68$ y $\hat{\beta}= 426007,2$
+
 Primero usamos datos históricos de los últimos 3 años: cuántas pólizas tuvimos y cuántos siniestros ocurrieron. Con eso, calculamos la tasa de siniestralidad promedio (es decir, qué proporción de pólizas termina en un siniestro).
 
-Luego, como para el año que viene esperamos tener una cantidad similar de pólizas, usamos esa tasa promedio para estimar cuántos siniestros podríamos tener. Pero en lugar de usar siempre un número fijo, lo que hicimos fue simular la cantidad de siniestros usando una distribución **Binomial Negativa**. Una vez que teníamos una cantidad simulada de siniestros para un año dado, simulamos también cuánto costaría cada uno. Y para eso usamos dos tipos distintos de distribuciones: **Burr** y **Log Nrormal**. Estas distribuciones reflejan bien las asimetrias de las cuantias observadas.
+Luego, como para el año que viene esperamos tener una cantidad similar de pólizas, usamos esa tasa promedio para estimar cuántos siniestros podríamos tener. Pero en lugar de usar siempre un número fijo, lo que hicimos fue simular la cantidad de siniestros usando una distribución **Binomial Negativa**. Una vez que teníamos una cantidad simulada de siniestros para un año dado, simulamos también cuánto costaría cada uno. Y para eso usamos dos tipos distintos de distribuciones: **Burr** y **Log Normal**. Estas distribuciones reflejan bien las asimetrias de las cuantias observadas.
 
-Simulados 10.000 años, generamos una cantidad de siniestros y sumamos los montos simulados de cada uno, usando cada distribución y finalmente, con esos 10.000 costos anuales simulados, analizamos cuál sería un escenario muy desfavorable (el peor 1% de los casos), y a partir de eso, calculamos el **Margen de Seguridad Mínimo**. 
+Simulados 10.000 valores del costo total anual de las cuantias a pagar, analizamos cuál sería un escenario muy desfavorable (el peor 1% de los casos), y a partir de eso, calculamos el **Margen de Seguridad Mínimo**. 
 
-Finalmente, presentamos los resultados recargando las primas en 1%, 5% o 10%.
+El margen de solvencia mínimo se calcula como la resta entre el valor que acumula una probabilidad del 99% en la distribución de la cuantia total (haciendo el supuseto de que la cuantia total se distribuyen Normal Power) y las primas totales a cobrar (las cuales pueden o no estar multiplicadas por un porcentaje de recargo).
+
+Finalmente, presentamos los resultados recargando las primas en 1%, 1,5%, 2,5%, 5% o 10%.
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 # Cant sinistros 
@@ -301,9 +311,12 @@ y_99 <- z_99 + coef_asimetria/6 * (z_99^2-1)
 y <- y_99* desvio + media
 
 MSM_1porc <- y-(media*1.01)
-MSM_1.5porc <- y-(media*1.05)
-MSM_2porc <- y-(media*1.1)
-MSM_log <- c(MSM_1porc, MSM_1.5porc, MSM_2porc)
+MSM_1.5porc <- y-(media*1.015)
+MSM_2.5porc <- y-(media*1.025)
+MSM_5porc <- y-(media*1.05)
+MSM_10porc <- y-(media*1.1)
+
+MSM_log <- c(MSM_1porc, MSM_1.5porc, MSM_2.5porc,MSM_5porc,MSM_10porc)
 
 media_burr <- mean(resultados$burr)
 desvio_burr <- sd(resultados$burr)
@@ -316,9 +329,11 @@ y_99 <- z_99 + coef_asimetria_burr/6 * (z_99^2-1)
 y <- y_99* desvio_burr + media_burr
 
 MSM_1porc_burr <- y-(media_burr*1.01)
-MSM_1.5porc_burr <- y-(media_burr*1.05)
-MSM_2porc_burr <- y-(media_burr*1.1)
-MSM_burr <- c(MSM_1porc_burr, MSM_1.5porc_burr, MSM_2porc_burr)
+MSM_1.5porc_burr <- y-(media_burr*1.015)
+MSM_2.5porc_burr <- y-(media_burr*1.025)
+MSM_5porc_burr <- y-(media_burr*1.05)
+MSM_10porc_burr <- y-(media_burr*1.1)
+MSM_burr <- c(MSM_1porc_burr, MSM_1.5porc_burr, MSM_2.5porc_burr,MSM_5porc_burr,MSM_10porc_burr)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -368,7 +383,6 @@ ggplot(resultados_long, aes(x = cuantia_total, fill = distribucion)) +
   scale_fill_manual(values = c("lognormal" = "#2BAF9D", "burr" = "#A870B4")) +
   theme_minimal()
 
-# Reorganizar tabla
 tabla1 <- data.frame(
   Distribución = c("Lognormal", "Burr"),
   Media = round(c(stats$media_log, stats$media_burr), 2),
@@ -377,6 +391,25 @@ tabla1 <- data.frame(
   `Percentil 95` = round(c(stats$p95_log, stats$p95_burr), 2),
   `Percentil 99` = round(c(stats$p99_log, stats$p99_burr), 2)
 )
+
+# Aplicar el formato deseado a las columnas numéricas con formato monetario
+columnas_monetarias <- c("Media", "Desvío.estándar", "Percentil.95", "Percentil.99")
+
+# Usar `mutate` con `across` para aplicar la función a múltiples columnas
+tabla1 <- tabla1 %>%
+  mutate(across(.cols = all_of(columnas_monetarias),
+                .fns = ~ paste0("$", formatC(.,
+                                             big.mark = ".",
+                                             decimal.mark = ",",
+                                             format = "f",
+                                             digits = 2)))) # Mantén 2 decimales para pesos si aplica
+tabla1 <- tabla1 %>%
+  mutate(across(.cols = "Asimetría",
+                .fns = ~ paste0(formatC(.,
+                                         big.mark = ".",
+                                         decimal.mark = ",",
+                                         format = "f",
+                                         digits = 2)))) # Mantén 2 decimales para pesos si aplica
 
 # Mostrar tabla en formato LaTeX
 tabla1 %>%
@@ -391,7 +424,7 @@ tabla1 %>%
                 font_size = 10) %>%
   row_spec(0, background = "#66CDAA", bold = TRUE, color = "black") %>%
   column_spec(1, width = "4cm") %>%
-  column_spec(2:10, width = "3cm") %>%
+  column_spec(2:6, width = "3cm") %>% # Asegúrate de que esto se ajuste al número de columnas
   footnote(general = "Nota: Valores expresados en pesos argentinos al 01/01/2024",
            general_title = "")
 
@@ -409,7 +442,7 @@ Los montos están expresados en pesos argentinos y representan el capital adicio
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(kableExtra)
 library(knitr)
-porc <- c("1%", "5%", "10%")
+porc <- c("1%", "1,5%","2,5%", "5%", "10%")
 tabla1 <- data.frame(porc, MSM_log, MSM_burr)
 # Formateo de la tabla
 colnames(tabla1) <- c("Porcentaje de Recargo de Seguridad",
