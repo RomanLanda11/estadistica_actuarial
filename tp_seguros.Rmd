@@ -674,8 +674,11 @@ y <- y_99* desvio + media
 
 MSM_1porc <- y-(media*1.01)
 MSM_1.5porc <- y-(media*1.015)
-MSM_2porc <- y-(media*1.02)
-MSM_log <- c(MSM_1porc, MSM_1.5porc, MSM_2porc)
+MSM_2.5porc <- y-(media*1.025)
+MSM_5porc <- y-(media*1.05)
+MSM_10porc <- y-(media*1.1)
+
+MSM_log <- c(MSM_1porc, MSM_1.5porc, MSM_2.5porc,MSM_5porc,MSM_10porc)
 
 media_burr <- mean(resultados$burr)
 desvio_burr <- sd(resultados$burr)
@@ -689,8 +692,11 @@ y <- y_99* desvio_burr + media_burr
 
 MSM_1porc_burr <- y-(media_burr*1.01)
 MSM_1.5porc_burr <- y-(media_burr*1.015)
-MSM_2porc_burr <- y-(media_burr*1.02)
-MSM_burr <- c(MSM_1porc_burr, MSM_1.5porc_burr, MSM_2porc_burr)
+MSM_2.5porc_burr <- y-(media_burr*1.025)
+MSM_5porc_burr <- y-(media_burr*1.05)
+MSM_10porc_burr <- y-(media_burr*1.1)
+MSM_burr <- c(MSM_1porc_burr, MSM_1.5porc_burr, MSM_2.5porc_burr,MSM_5porc_burr,MSM_10porc_burr)
+
 
 library(e1071) # para skewness
 
@@ -738,7 +744,6 @@ ggplot(resultados_long, aes(x = cuantia_total, fill = distribucion)) +
   scale_fill_manual(values = c("lognormal" = "#2BAF9D", "burr" = "#A870B4")) +
   theme_minimal()
 
-# Reorganizar tabla
 tabla1 <- data.frame(
   Distribución = c("Lognormal", "Burr"),
   Media = round(c(stats$media_log, stats$media_burr), 2),
@@ -747,6 +752,25 @@ tabla1 <- data.frame(
   `Percentil 95` = round(c(stats$p95_log, stats$p95_burr), 2),
   `Percentil 99` = round(c(stats$p99_log, stats$p99_burr), 2)
 )
+
+# Aplicar el formato deseado a las columnas numéricas con formato monetario
+columnas_monetarias <- c("Media", "Desvío.estándar", "Percentil.95", "Percentil.99")
+
+# Usar `mutate` con `across` para aplicar la función a múltiples columnas
+tabla1 <- tabla1 %>%
+  mutate(across(.cols = all_of(columnas_monetarias),
+                .fns = ~ paste0("$", formatC(.,
+                                             big.mark = ".",
+                                             decimal.mark = ",",
+                                             format = "f",
+                                             digits = 2)))) # Mantén 2 decimales para pesos si aplica
+tabla1 <- tabla1 %>%
+  mutate(across(.cols = "Asimetría",
+                .fns = ~ paste0(formatC(.,
+                                         big.mark = ".",
+                                         decimal.mark = ",",
+                                         format = "f",
+                                         digits = 2)))) # Mantén 2 decimales para pesos si aplica
 
 # Mostrar tabla en formato LaTeX
 tabla1 %>%
@@ -761,7 +785,7 @@ tabla1 %>%
                 font_size = 10) %>%
   row_spec(0, background = "#66CDAA", bold = TRUE, color = "black") %>%
   column_spec(1, width = "4cm") %>%
-  column_spec(2:10, width = "3cm") %>%
+  column_spec(2:6, width = "3cm") %>% # Asegúrate de que esto se ajuste al número de columnas
   footnote(general = "Nota: Valores expresados en pesos argentinos al 01/01/2024",
            general_title = "")
 
@@ -769,21 +793,42 @@ tabla1 %>%
 
 library(kableExtra)
 library(knitr)
-porc <- c("1%", "1,5%", "2%")
+porc <- c("1%", "1,5%","2,5%", "5%", "10%")
 tabla1 <- data.frame(porc, MSM_log, MSM_burr)
-colnames(tabla1) <- c("Porcentaje de Recargo de Seguridad","Margen de Solvencia Mínimo Log-Normal", "Margen de Solvencia Mínimo Burr")
+# Formateo de la tabla
+colnames(tabla1) <- c("Porcentaje de Recargo de Seguridad",
+                     "Margen de Solvencia Mínimo Log-Normal", 
+                     "Margen de Solvencia Mínimo Burr")
 
-tabla1$`Margen de Solvencia Mínimo Log-Normal` <-
-  paste0("$", formatC(tabla1$`Margen de Solvencia Mínimo Log-Normal`,
-                       big.mark = ".", format = "f", digits = 0))
+# Formateo de valores numéricos con separadores de miles
+tabla1$`Margen de Solvencia Mínimo Log-Normal` <- paste0("$", formatC(tabla1$`Margen de Solvencia Mínimo Log-Normal`,
+                                                                     big.mark = ".", 
+                                                                     decimal.mark = ",",
+                                                                     format = "f", 
+                                                                     digits = 0))
 
-tabla1$`Margen de Solvencia Mínimo Burr` <-
-  paste0("$", formatC(tabla1$`Margen de Solvencia Mínimo Burr`,
-                       big.mark = ".", format = "f", digits = 0))
+tabla1$`Margen de Solvencia Mínimo Burr` <- paste0("$", formatC(tabla1$`Margen de Solvencia Mínimo Burr`,
+                                                               big.mark = ".", 
+                                                               decimal.mark = ",",
+                                                               format = "f", 
+                                                               digits = 0))
+
+# Creación de la tabla con formato profesional
 tabla1 %>%
-  kbl(caption = "Tabla 2: Margen de Solvencia Mínimo según porcentaje de recargo de seguridad.", align = "c") %>% # Añadir un título
-  kable_styling(bootstrap_options = "striped", full_width = FALSE) %>% 
-  row_spec(0, background = "#66CDAA")
+  kbl(caption = "Margen de Solvencia Mínimo según porcentaje de recargo de seguridad",
+      align = "c",
+      format = "latex",
+      booktabs = TRUE,
+      linesep = "") %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
+                full_width = FALSE,
+                position = "center",
+                font_size = 10) %>%
+  row_spec(0, background = "#66CDAA", bold = TRUE, color = "black") %>%
+  column_spec(1, width = "4cm") %>%
+  column_spec(2:3, width = "5cm") %>%
+  footnote(general = "Nota: Valores expresados en pesos argentinos al 01/01/2024",
+           general_title = "")
 
 ```
  
