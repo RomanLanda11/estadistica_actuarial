@@ -243,10 +243,6 @@ Luego, como para el año que viene esperamos tener una cantidad similar de póli
 
 Simulados 10.000 valores del costo total anual de las cuantias a pagar, analizamos cuál sería un escenario muy desfavorable (el peor 1% de los casos), y a partir de eso, calculamos el **Margen de Seguridad Mínimo**. 
 
-El margen de solvencia mínimo se calcula como la resta entre el valor que acumula una probabilidad del 99% en la distribución de la cuantia total (haciendo el supuseto de que la cuantia total se distribuyen Normal Power) y las primas totales a cobrar (las cuales pueden o no estar multiplicadas por un porcentaje de recargo).
-
-Finalmente, presentamos los resultados recargando las primas en 1%, 1,5%, 2,5%, 5% o 10%.
-
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 # Cant sinistros 
 ## Binomial negativa
@@ -271,11 +267,15 @@ n_sim <- 10000
 suma_burr <- numeric(n_sim)
 suma_lnorm <- numeric(n_sim)
 
+cantidades <- c()
+siniestros_burr <- c()
+siniestros_log <- c()
+
 # Simulación año por año
 for (i in 1:n_sim) {
   # Simular cantidad de siniestros
   cantidad <- rnbinom(1, mu = mu, size = size)
-
+  cantidades <- c(cantidades, cantidad)
   # Simular severidades y sumar
   if (cantidad > 0) {
     burr_vals <- rburr(cantidad,
@@ -335,6 +335,36 @@ MSM_5porc_burr <- y-(media_burr*1.05)
 MSM_10porc_burr <- y-(media_burr*1.1)
 MSM_burr <- c(MSM_1porc_burr, MSM_1.5porc_burr, MSM_2.5porc_burr,MSM_5porc_burr,MSM_10porc_burr)
 ```
+
+En primer lugar observamos como se distribuye la cantidad de siniestros anuales para las 10 mil simulaciones.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(scales)
+
+df_cantidad <- data.frame(cantidad = cantidades)
+
+# Crear el gráfico de barras
+ggplot(df_cantidad, aes(x = cantidad)) +
+  geom_bar(fill = "#66CDAA") + # geom_bar para conteos discretos
+  labs(
+    title = "Distribución de la cantidad de siniestros anuales simulados",
+    x = "Cantidad de Siniestros Anuales",
+    y = "Frecuencia"
+  ) +
+  # Si la cantidad de siniestros es muy grande y quieres miles, puedes usar esto.
+  # Si son números enteros pequeños, podrías quitarlo o ajustarlo.
+  # scale_x_continuous(labels = label_number(big.mark = ".", accuracy = 1)) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"), # Centrar y negrita el título
+    axis.title = element_text(face = "bold"), # Negrita los títulos de los ejes
+    axis.text = element_text(color = "black") # Color de texto de los ejes
+  )
+```
+A partir de la simulación de la cantidad de siniestros anuales (utilizando un modelo de distribución Binomial Negativa), observamos que la frecuencia de eventos esperada para un año se sitúa alrededor de 3.500 siniestros. Los resultados de la simulación indican que es altamente probable que el número de siniestros anuales se encuentre en un rango acotado, oscilando típicamente entre 3.000 y 4.000. 
+
+Posteriormente, cada una de estas 10.000 simulaciones de la cantidad de siniestros anuales será utilizada como la base para generar la cuantía total que la compañía deberá afrontar en cada uno de esos años. Para ello, modelaremos la severidad de cada siniestro (es decir, el monto individual de cada siniestro) utilizando las dos distribuciones previamente ajustadas a nuestros datos históricos: la distribución Lognormal y la distribución Burr. Esto nos permitirá obtener una distribución de las cuantias totales anuales, considerando tanto la frecuencia como la severidad de los siniestros.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(e1071) # para skewness
@@ -430,6 +460,10 @@ tabla1 %>%
 
 ```
 
+
+El margen de solvencia mínimo se calcula como la resta entre el valor que acumula una probabilidad del 99% en la distribución de la cuantia total (haciendo el supuseto de que la cuantia total se distribuyen Normal Power) y las primas totales a cobrar (las cuales pueden o no estar multiplicadas por un porcentaje de recargo).
+
+Finalmente, presentamos los resultados recargando las primas en 1%, 1,5%, 2,5%, 5% o 10%.
 
 \newpage
 
