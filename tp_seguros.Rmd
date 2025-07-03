@@ -479,6 +479,19 @@ Finalmente, presentamos los resultados recargando las primas en 1%, 1,5%, 2,5%, 
 
 A continuación presentamos los márgenes de solvencia mínimos obtenidos mediante simulación para diferentes porcentajes de recargo de seguridad, comparando los resultados bajo los dos modelos de severidad considerados: Log-Normal y Burr. La tabla resume los valores requeridos para garantizar un 99% de probabilidad de solvencia, mostrando cómo varían las necesidades de capital según el porcentaje de recargo aplicado y la distribución utilizada.
 
+Los pasos a seguir para obtener los resultados de la tabla fueron los siguientes:
+
+1) Encontrar $z_0$ tal que $P(Z<z_0)=0,99$, siendo Z una variable aleatoria normal estándar.
+
+2) Transformar $z_0$ suponiendo que la distribución de la severidad sigue una Normal Power: $y_0=z_0 \frac{\gamma_0}{6}(z_0^2-1)$
+
+3) Desestandarizar: $y_0$ multiplicándolo por el desvío estándar de la distribución utilizada (Log-Normal o Burr), y sumando su media.
+
+4) Calcular el Margen de Solvencia Mínimo (MSM) como la diferencia entre el valor obtenido en el paso anterior y la prima pura recargada, es decir:
+$$MSM= Valor.ajustado-(Media(1+Recargo))$$
+
+Esto se justifica porque se asume que la prima pura es igual al valor esperado de la siniestralidad.
+
 Los montos están expresados en pesos argentinos y representan el capital adicional que la compañía debería mantener para cubrir posibles desviaciones adversas en su cartera de seguros automotores durante el año 2024.
  
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
