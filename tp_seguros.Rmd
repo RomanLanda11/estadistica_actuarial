@@ -241,11 +241,14 @@ La estimación de parámetros para ambos modelos se hacen durante el ajuste de l
 
 * Burr: $\hat{\alpha}=1,08$, $\hat{\gamma}=4,68$ y $\hat{\beta}= 426007,2$
 
-Primero usamos datos históricos de los últimos 3 años: cuántas pólizas tuvimos y cuántos siniestros ocurrieron. Con eso, calculamos la tasa de siniestralidad promedio (es decir, qué proporción de pólizas termina en un siniestro).
+Primero usamos datos históricos de los últimos 3 años: cuántas pólizas tuvimos y cuántos siniestros ocurrieron. Con eso, calculamos la tasa de siniestralidad promedio, es decir, la proporción de pólizas resultaron en un siniestro.
 
-Luego, como para el año que viene esperamos tener una cantidad similar de pólizas, usamos esa tasa promedio para estimar cuántos siniestros podríamos tener. Pero en lugar de usar siempre un número fijo, lo que hicimos fue simular la cantidad de siniestros usando una distribución **Binomial Negativa**. Una vez que teníamos una cantidad simulada de siniestros para un año dado, simulamos también cuánto costaría cada uno. Y para eso usamos dos tipos distintos de distribuciones: **Burr** y **Log Normal**. Estas distribuciones reflejan bien las asimetrias de las cuantias observadas.
+Luego, como para el año que viene esperamos tener una cantidad similar de pólizas, usamos esa tasa promedio para estimar cuántos siniestros podríamos tener. En lugar de usar un número fijo, se simularon la cantidad de siniestros usando una distribución **Binomial Negativa**. 
+Para cada cantidad simulada de siniestros, generamos valores simulados de su costo individual. Y para eso usamos dos tipos distintos de distribuciones: **Burr** y **Log Normal**. Estas distribuciones reflejan bien las asimetrias de las cuantias observadas.
+Finalmente, para cada iteración, sumamos los costos individuales simulados para obtener un valor de la cuantía total anual a pagar.
 
-Simulados 10.000 valores del costo total anual de las cuantias a pagar, analizamos cuál sería un escenario muy desfavorable (el peor 1% de los casos), y a partir de eso, calculamos el **Margen de Seguridad Mínimo**. 
+
+Se realizaron 10.000 simulaciones del costo total anual. Por último, utilizando esta distribución analizamos cuál sería un escenario muy desfavorable (el peor 1% de los casos), y a partir de eso, calculamos el **Margen de Seguridad Mínimo**. 
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 # Cant sinistros 
@@ -368,7 +371,8 @@ ggplot(df_cantidad, aes(x = cantidad)) +
 ```
 A partir de la simulación de la cantidad de siniestros anuales (utilizando un modelo de distribución Binomial Negativa), observamos que la frecuencia de eventos esperada para un año se sitúa alrededor de 3.500 siniestros. Los resultados de la simulación indican que es altamente probable que el número de siniestros anuales se encuentre en un rango acotado, oscilando típicamente entre 3.000 y 4.000. 
 
-Posteriormente, cada una de estas 10.000 simulaciones de la cantidad de siniestros anuales será utilizada como la base para generar la cuantía total que la compañía deberá afrontar en cada uno de esos años. Para ello, modelaremos la severidad de cada siniestro (es decir, el monto individual de cada siniestro) utilizando las dos distribuciones previamente ajustadas a nuestros datos históricos: la distribución Lognormal y la distribución Burr. Esto nos permitirá obtener una distribución de las cuantias totales anuales, considerando tanto la frecuencia como la severidad de los siniestros.
+Posteriormente, cada una de estas 10.000 simulaciones de la cantidad de siniestros anuales será utilizada como la base para generar la cuantía total que la compañía deberá afrontar. Para ello, modelaremos la severidad de cada siniestro (es decir, el monto individual de cada siniestro) utilizando las dos distribuciones previamente ajustadas a nuestros datos históricos: la distribución Lognormal y la distribución Burr. 
+De esta manera, al sumar los montos individuales generados para cada simulación, se obtiene una distribución de la cuantía total anual, combinando tanto la frecuencia como la severidad de los siniestros.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(e1071) # para skewness
@@ -465,7 +469,7 @@ tabla1 %>%
 ```
 
 
-El margen de solvencia mínimo se calcula como la resta entre el valor que acumula una probabilidad del 99% en la distribución de la cuantia total (haciendo el supuseto de que la cuantia total se distribuyen Normal Power) y las primas totales a cobrar (las cuales pueden o no estar multiplicadas por un porcentaje de recargo).
+El margen de solvencia mínimo se calcula como la diferencia entre el valor que acumula una probabilidad del 99% en la distribución de la cuantía total (haciendo el supuesto de que la cuantía total se distribuye Normal Power) y las primas totales a cobrar (las cuales pueden o no estar multiplicadas por un porcentaje de recargo).
 
 Finalmente, presentamos los resultados recargando las primas en 1%, 1,5%, 2,5%, 5% o 10%.
 
