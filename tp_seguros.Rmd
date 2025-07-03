@@ -145,11 +145,15 @@ ggplot(cuantias_23, aes(x = cuantia24)) +
 median(cuantias_23$cuantia24)
 mean(cuantias_23$cuantia24)
 sd(cuantias_23$cuantia24)
+sum(cuantias_23$Cuantia)
+sum(cuantias_23$cuantia24)
 ```
 
 En estos gráficos podemos observar que la frecuencia parece constante a lo largo del periodo de análisis y que la severidad parece distribuirse de forma asimétrica con muchos siniestros pequeños y algunos pocos de gran importe. 
 
 Además, podemos ver que al menos el 50% de los siniestros le costaron menos de \$ 417.603,40.- a la compañia y que el costo medio de los mismos fue de \$ 454.566,30.- con un desvio estandar de \$ 233.500,60.- 
+
+Finalmente, podemos mencionar que la cuantía total afrontada por la compañía durante el año 2023 fue \$954.856.697.- , lo que actualizado al día 01/01/2024 equivaldría \$1.559.617.015.-
 
 
 # Simulaciones
